@@ -7,6 +7,11 @@ Artificial Intelligence library written in Golang
     - Hopfield (hopnn)
     - Echo State (esn)
  - Genetic Algorithm (ga)
+    - Basic
+       - fixed P(Crossover) and P(Mutation)
+    - Adaptive
+       - change P(Crossover) and P(Mutation) according to population diversity
+    - Support Recessive gene
 
 # feature
  - simple mode
