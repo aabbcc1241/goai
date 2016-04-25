@@ -58,11 +58,12 @@ func (p *GA_s)Run() {
 	n_pop := len(p.Population)
 	//gen_length := len(p.Population[0].Code)
 	/* 1. get fitness */
-	for _, v := range (p.Population) {
-		v.Fitness.Set(p.Fitness_i.Apply(v))
+	for i := range (p.Population) {
+		p.Population[i].Fitness.Set(p.Fitness_i.Apply(p.Population[i]))
 	}
 	/* 2. crossover TODO */
 	sort.Sort(p.Population)
+	log.Info.Println("best:", p.Population[n_pop - 1].Fitness.Value)
 	new_pop := make([]Gene_s, n_pop)
 	for i_pop := 0; i_pop < n_pop; i_pop++ {
 		a := i_pop - i_pop % 2
@@ -72,8 +73,6 @@ func (p *GA_s)Run() {
 			Code:code,
 		}
 	}
-	//for k, v := range (p.Population) {
-	//}
 	p.Population = new_pop
 	/* 3. mutation TODO */
 }

@@ -21,6 +21,7 @@ func (Fitness_i)Apply(gen ga.Gene_s) float64 {
 	for _, v := range (gen.Code) {
 		i += float64(v)
 	}
+	//log.Debug.Println("fitness:",i)
 	return i
 }
 func main() {
