@@ -4,6 +4,7 @@ import (
 	"github.com/aabbcc1241/goutils/log"
 	"math/rand"
 	"sort"
+	"sync"
 )
 
 type Fitness_i interface {
@@ -25,6 +26,8 @@ type Gene_s struct {
 	Fitness Float64PreCompute
 }
 type population []Gene_s
+
+//TODO make a constructor for GA_s
 type GA_s struct {
 	Population  population
 	P_CrossOver float64
@@ -33,6 +36,8 @@ type GA_s struct {
 	/* amount (percentage) of mutation within that gen */
 	A_Mutation float64
 	Fitness_i  Fitness_i
+	/* at least 1 */
+	NumberOfThread int
 }
 
 func (p population) Len() int {
@@ -46,6 +51,9 @@ func (p population) Less(i, j int) bool {
 }
 
 func (p *GA_s) Init(n_pop int, gen_length int) {
+	if p.NumberOfThread == 0 {
+		p.NumberOfThread = 1
+	}
 	p.Population = make([]Gene_s, n_pop)
 	for i_pop := 0; i_pop < n_pop; i_pop++ {
 		code := make([]byte, gen_length)
@@ -92,38 +100,91 @@ func measure_and_sort(p *GA_s) (bestFitness float64) {
 func crossover(p *GA_s) {
 	n_pop := len(p.Population)
 	n_crossover := (int)(p.P_CrossOver * float64(n_pop))
-	/* replace first p_mutation percent for bad gens */
-	for i_pop := 0; i_pop < n_crossover; i_pop++ {
-		/* select from last (1-p_mutation) parent pool */
-		a := n_crossover + rand.Intn(n_pop-n_crossover)
-		b := n_crossover + rand.Intn(n_pop-n_crossover)
-		p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
-		p.Population[i_pop].Fitness.IsValid = false
+	if p.NumberOfThread == 1 {
+		/* replace first p_mutation percent for bad gens */
+		for i_pop := 0; i_pop < n_crossover; i_pop++ {
+			/* select from last (1-p_mutation) parent pool */
+			a := n_crossover + rand.Intn(n_pop-n_crossover)
+			b := n_crossover + rand.Intn(n_pop-n_crossover)
+			p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
+			p.Population[i_pop].Fitness.IsValid = false
+		}
+	} else {
+		/* parallel version */
+		wg := sync.WaitGroup{}
+		wg.Add(p.NumberOfThread)
+		for i_thread := 0; i_thread < p.NumberOfThread; i_thread++ {
+			//log.Debug.Println("crossover:fork")
+			go func(i_thread int) {
+				defer wg.Done()
+				for i_pop := 0; i_pop < n_crossover; i_pop++ {
+					if i_pop%p.NumberOfThread != i_thread {
+						continue
+					}
+					/* select from last (1-p_mutation) parent pool */
+					a := n_crossover + rand.Intn(n_pop-n_crossover)
+					b := n_crossover + rand.Intn(n_pop-n_crossover)
+					p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
+					p.Population[i_pop].Fitness.IsValid = false
+				}
+			}(i_thread)
+		}
+		//log.Debug.Println("crossover:wait")
+		wg.Wait()
+		//log.Debug.Println("crossover:joined")
 	}
 }
 func mutation(p *GA_s) {
-	for i := range p.Population {
-		if rand.Float64() < p.P_Mutation {
-			p.Population[i].Code.mutation(p.A_Mutation)
+	if p.NumberOfThread == 1 {
+		for i := range p.Population {
+			if rand.Float64() < p.P_Mutation {
+				p.Population[i].Code.mutation(p.A_Mutation)
+			}
 		}
+	} else {
+		wg := sync.WaitGroup{}
+		wg.Add(p.NumberOfThread)
+		for i_thread := 0; i_thread < p.NumberOfThread; i_thread++ {
+			//log.Debug.Println("mutation:fork")
+			go func(i_thread int) {
+				defer wg.Done()
+				for i := range p.Population {
+					if i%p.NumberOfThread != i_thread {
+						continue
+					}
+					if rand.Float64() < p.P_Mutation {
+						p.Population[i].Code.mutation(p.A_Mutation)
+					}
+				}
+			}(i_thread)
+		}
+		//log.Debug.Println("mutation:wait")
+		wg.Wait()
+		//log.Debug.Println("mutation:joined")
 	}
 }
-func (p *GA_s) Run() {
+func (p *GA_s) Run(verbose bool) {
 	//gen_length := len(p.Population[0].Code)
 	/* 1. get fitness */
 	bestFitness := measure_and_sort(p)
 	/* 2. crossover */
-	log.Info.Println("bestFitness:", bestFitness)
+	if verbose {
+		log.Info.Println("bestFitness:", bestFitness)
+	}
 	crossover(p)
-	/* 3. mutation TODO */
+	/* 3. mutation */
 	mutation(p)
 }
-func (p *GA_s) RunN(n int) {
+func (p *GA_s) RunN(n int, verbose bool) {
 	for i := 0; i < n; i++ {
-		log.Info.Printf("%v/%v", i, n)
-		p.Run()
+		if verbose {
+			log.Info.Printf("%v/%v", i, n)
+		}
+		p.Run(verbose)
 	}
-	log.Info.Printf("%v/%v", n, n)
+	if verbose {
+		log.Info.Printf("%v/%v", n, n)
+	}
 }
 func (p *GA_s) RunUntil(targetBestFitness float64, stepUpperLimit int) (stepCount int, excessUpperLimit bool) {
 	currentBestFitness := 0.0

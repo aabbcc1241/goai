@@ -28,6 +28,10 @@ import (
  *       0.000934375  | 1821
  *       0.001        | 2153
  * the parameter is for user application initial guess reference
+ *
+ * when run for 1000 steps
+ *   single thread             :  4 seconds
+ *   8 thread on 8 core system : 11  seconds
  */
 func init() {
 	log.Init(true, true, true, log.ShortCommFlag)
@@ -49,15 +53,16 @@ func main() {
 	fmt.Println(time.Now())
 
 	ga_s := ga.GA_s{
-		P_CrossOver: 0.8,
-		P_Mutation:  0.2,
-		A_Mutation:  0.000912,
-		Fitness_i:   Fitness_i{},
+		P_CrossOver:    0.8,
+		P_Mutation:     0.2,
+		A_Mutation:     0.000912,
+		Fitness_i:      Fitness_i{},
+		NumberOfThread: 1,
 	}
 	ga_s.Init(100, 1000)
-	//ga_s.RunN(10000)
-	stepCount, excessLimit := ga_s.RunUntil(1000, 10000)
-	log.Info.Println("stepCount", stepCount, "earlyTerm", excessLimit)
+	ga_s.RunN(1000, false)
+	//stepCount, excessLimit := ga_s.RunUntil(1000, 10000)
+	//log.Info.Println("stepCount", stepCount, "earlyTerm", excessLimit)
 
 	fmt.Println("end")
 	fmt.Println(time.Now())
