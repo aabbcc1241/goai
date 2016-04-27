@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-
 	"github.com/aabbcc1241/goai/ga"
 	"github.com/aabbcc1241/goutils/log"
 	"time"
