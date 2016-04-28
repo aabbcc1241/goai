@@ -1,10 +1,10 @@
 package ga
 
 import (
+	"github.com/aabbcc1241/goutils/lang"
 	"github.com/aabbcc1241/goutils/log"
 	"math/rand"
 	"sort"
-	"sync"
 )
 
 type Fitness_i interface {
@@ -25,7 +25,11 @@ type Gene_s struct {
 	Code    code_t
 	Fitness Float64PreCompute
 }
-type population []Gene_s
+
+/* array of Gene_s */
+type population struct {
+	lang.ParallelArray
+}
 
 //TODO make a constructor for GA_s
 type GA_s struct {
@@ -34,35 +38,54 @@ type GA_s struct {
 	/* probability of mutation */
 	P_Mutation float64
 	/* amount (percentage) of mutation within that gen */
-	A_Mutation float64
-	Fitness_i  Fitness_i
-	/* at least 1 */
-	NumberOfThread int
+	A_Mutation    float64
+	Fitness_i     Fitness_i
+	IsMultiThread bool
 }
 
-func (p population) Len() int {
-	return len(p)
+func (p population) get(i int) Gene_s {
+	return p.Data[i].(Gene_s)
 }
+func (p *population) set(i int, v Gene_s) {
+	p.Data[i] = v
+}
+
+//func (p population) Len() int {
+//	return len(p)
+//}
 func (p population) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
+	p.Data[i], p.Data[j] = p.Data[j], p.Data[i]
 }
 func (p population) Less(i, j int) bool {
-	return p[i].Fitness.Value < p[j].Fitness.Value
+	return p.get(i).Fitness.Value < p.get(j).Fitness.Value
 }
 
 func (p *GA_s) Init(n_pop int, gen_length int) {
-	if p.NumberOfThread == 0 {
-		p.NumberOfThread = 1
-	}
-	p.Population = make([]Gene_s, n_pop)
-	for i_pop := 0; i_pop < n_pop; i_pop++ {
-		code := make([]byte, gen_length)
-		rand.Read(code)
-		for i := 0; i < gen_length; i++ {
-			code[i] = code[i] % 2
+	p.Population = population{lang.ParallelArray{Data: make([]interface{}, n_pop)}}
+	if p.IsMultiThread && false {
+		sem := make(lang.Semaphore, n_pop)
+		log.Debug.Println("n_pop", n_pop)
+		for i_pop := 0; i_pop < n_pop; i_pop++ {
+			go func(i_pop int) {
+				code := make([]byte, gen_length)
+				rand.Read(code)
+				for i := 0; i < gen_length; i++ {
+					code[i] = code[i] % 2
+				}
+				p.Population.set(i_pop, Gene_s{Code: code})
+				//log.Debug.Println(i_pop, len(p.Population[i_pop].Code))
+				sem.Signal()
+			}(i_pop)
 		}
-		p.Population[i_pop] = Gene_s{
-			Code: code,
+		sem.Wait(n_pop)
+	} else {
+		for i_pop := 0; i_pop < n_pop; i_pop++ {
+			code := make([]byte, gen_length)
+			rand.Read(code)
+			for i := 0; i < gen_length; i++ {
+				code[i] = code[i] % 2
+			}
+			p.Population.set(i_pop, Gene_s{Code: code})
 		}
 	}
 }
@@ -73,6 +96,11 @@ func (child *code_t) crossover(parent1, parent2 *code_t) {
 		if rand.Intn(2) == 0 {
 			(*child)[i] = (*parent1)[i]
 		} else {
+			//log.Debug.Println("--------------")
+			//log.Debug.Println("i", i)
+			//log.Debug.Println("child", *child)
+			//log.Debug.Println("child[i]", (*child)[i])
+			//log.Debug.Println("--------------")
 			(*child)[i] = (*parent2)[i]
 		}
 	}
@@ -86,21 +114,49 @@ func (p *code_t) mutation(a_mutation float64) {
 		}
 	}
 }
-func measure_and_sort(p *GA_s) (bestFitness float64) {
-	for i := range p.Population {
-		if !p.Population[i].Fitness.IsValid {
-			p.Population[i].Fitness.Set(p.Fitness_i.Apply(p.Population[i]))
-		}
+
+type measure_and_sort_s struct {
+	p *GA_s
+}
+
+func (p measure_and_sort_s) Apply(k int, v interface{}, r *rand.Rand) {
+	gene := v.(Gene_s)
+	if !gene.Fitness.IsValid {
+		gene.Fitness.Set(p.p.Fitness_i.Apply(gene))
 	}
+}
+func measure_and_sort(p *GA_s) (bestFitness float64) {
+	p.Population.For(measure_and_sort_s{p}, false)
+	//for i := range p.Population {
+	//	if !p.Population[i].Fitness.IsValid {
+	//		p.Population[i].Fitness.Set(p.Fitness_i.Apply(p.Population[i]))
+	//	}
+	//}
 	sort.Sort(p.Population)
-	return p.Population[len(p.Population)-1].Fitness.Value
+	return p.Population.get(p.Population.Len() - 1).Fitness.Value
+	//return p.Population[len(p.Population) - 1].Fitness.Value
 }
 
 /* REMARK : require pre-sorted population */
 func crossover(p *GA_s) {
-	n_pop := len(p.Population)
+	n_pop := p.Population.Len()
 	n_crossover := (int)(p.P_CrossOver * float64(n_pop))
-	if p.NumberOfThread == 1 {
+	if p.IsMultiThread {
+		sem := make(lang.Semaphore, n_pop)
+		for i_pop := 0; i_pop < n_crossover; i_pop++ {
+			/* select from last (1-p_mutation) parent pool */
+			go func(i_pop int) {
+				a := n_crossover + rand.Intn(n_pop-n_crossover)
+				b := n_crossover + rand.Intn(n_pop-n_crossover)
+				//p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
+				//p.Population[i_pop].Fitness.IsValid = false
+				p.Population.get(i_pop).Code.crossover(&(p.Population.get(a).Code), &(p.Population.get(b).Code))
+				p.Population.Data[i_pop].(Gene_s).Fitness.IsValid = false
+				sem.Signal()
+			}(i_pop)
+		}
+		sem.Wait(n_pop)
+	} else {
 		/* replace first p_mutation percent for bad gens */
 		for i_pop := 0; i_pop < n_crossover; i_pop++ {
 			/* select from last (1-p_mutation) parent pool */
@@ -109,58 +165,28 @@ func crossover(p *GA_s) {
 			p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
 			p.Population[i_pop].Fitness.IsValid = false
 		}
-	} else {
-		/* parallel version */
-		wg := sync.WaitGroup{}
-		wg.Add(p.NumberOfThread)
-		for i_thread := 0; i_thread < p.NumberOfThread; i_thread++ {
-			//log.Debug.Println("crossover:fork")
-			go func(i_thread int) {
-				defer wg.Done()
-				for i_pop := 0; i_pop < n_crossover; i_pop++ {
-					if i_pop%p.NumberOfThread != i_thread {
-						continue
-					}
-					/* select from last (1-p_mutation) parent pool */
-					a := n_crossover + rand.Intn(n_pop-n_crossover)
-					b := n_crossover + rand.Intn(n_pop-n_crossover)
-					p.Population[i_pop].Code.crossover(&p.Population[a].Code, &p.Population[b].Code)
-					p.Population[i_pop].Fitness.IsValid = false
-				}
-			}(i_thread)
-		}
-		//log.Debug.Println("crossover:wait")
-		wg.Wait()
-		//log.Debug.Println("crossover:joined")
 	}
 }
 func mutation(p *GA_s) {
-	if p.NumberOfThread == 1 {
+	if p.IsMultiThread {
+		sem := make(lang.Semaphore, len(p.Population))
+		n_sem := 0
+		for i := range p.Population {
+			if rand.Float64() < p.P_Mutation {
+				n_sem++
+				go func(i int) {
+					p.Population[i].Code.mutation(p.A_Mutation)
+					sem.Signal()
+				}(i)
+			}
+		}
+		sem.Wait(n_sem)
+	} else {
 		for i := range p.Population {
 			if rand.Float64() < p.P_Mutation {
 				p.Population[i].Code.mutation(p.A_Mutation)
 			}
 		}
-	} else {
-		wg := sync.WaitGroup{}
-		wg.Add(p.NumberOfThread)
-		for i_thread := 0; i_thread < p.NumberOfThread; i_thread++ {
-			//log.Debug.Println("mutation:fork")
-			go func(i_thread int) {
-				defer wg.Done()
-				for i := range p.Population {
-					if i%p.NumberOfThread != i_thread {
-						continue
-					}
-					if rand.Float64() < p.P_Mutation {
-						p.Population[i].Code.mutation(p.A_Mutation)
-					}
-				}
-			}(i_thread)
-		}
-		//log.Debug.Println("mutation:wait")
-		wg.Wait()
-		//log.Debug.Println("mutation:joined")
 	}
 }
 func (p *GA_s) Run(verbose bool) {

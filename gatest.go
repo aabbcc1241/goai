@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/aabbcc1241/goai/ga"
 	"github.com/aabbcc1241/goutils/log"
+	"runtime"
 	"time"
 )
 
@@ -29,9 +30,26 @@ import (
  *       0.001        | 2153
  * the parameter is for user application initial guess reference
  *
- * when run for 1000 steps
- *   single thread             :  4 seconds
- *   8 thread on 8 core system : 11  seconds
+ * parallel support
+ *   when run for 1000 steps (100 pop, 1000 gen_len)
+ *     single thread             : 4 seconds
+ *     8 thread on 8 core system : 7 seconds
+ *   when run for 10000 steps (100 pop, 1000 gen_len)
+ *     single thread             : 39 seconds
+ *     8 thread on 8 core system : 75 seconds
+ *   when run for 1000 steps (1000 pop, 1000 gen_len)
+ *     single thread             : 39 seconds
+ *     8 thread on 8 core system : 64 seconds
+ *   when run for 100 steps (10000 pop, 1000 gen_len)
+ *     single thread             : 39 seconds
+ *     8 thread on 8 core system : 67 seconds
+ *   when run for 1000 steps (32 pop, 10000 gen_len)
+ *     single thread             : 12 seconds
+ *     8 thread on 8 core system : 40 seconds
+ *   when run for 1000 steps (16 pop, 100000 gen_len)
+ *     single thread             : 57 seconds
+ *     8 thread on 8 core system : 26 seconds
+ *       using ParallelArray     : xx seconds
  */
 func init() {
 	log.Init(true, true, true, log.ShortCommFlag)
@@ -48,18 +66,44 @@ func (Fitness_i) Apply(gen ga.Gene_s) float64 {
 	//log.Debug.Println("fitness:",i)
 	return i
 }
+func test(start, end int) {
+	N := end - start
+	n := runtime.GOMAXPROCS(0)
+	s := N / n
+	fmt.Println("N", N, "n", n, "s", s)
+	if N < n {
+		for ; start < end; start++ {
+			fmt.Println(start)
+		}
+	} else {
+		for i := 0; i < n; i++ {
+			a := i*s + start
+			b := (i+1)*s - 1 + start
+			fmt.Println(i, a, b)
+		}
+		if n*s != N {
+			test(n*s+start, end)
+		}
+	}
+
+}
 func main() {
+	//test(56, 159)
+	//return
 	fmt.Println("start")
+	//fmt.Println("cpu",runtime.NumCPU())
+	//fmt.Println("goroutine",runtime.NumGoroutine())
+	//fmt.Println("max go routine",runtime.GOMAXPROCS(0))
 	fmt.Println(time.Now())
 
 	ga_s := ga.GA_s{
-		P_CrossOver:    0.8,
-		P_Mutation:     0.2,
-		A_Mutation:     0.000912,
-		Fitness_i:      Fitness_i{},
-		NumberOfThread: 1,
+		P_CrossOver:   0.8,
+		P_Mutation:    0.2,
+		A_Mutation:    0.000912,
+		Fitness_i:     Fitness_i{},
+		IsMultiThread: false,
 	}
-	ga_s.Init(100, 1000)
+	ga_s.Init(16, 100000)
 	ga_s.RunN(1000, false)
 	//stepCount, excessLimit := ga_s.RunUntil(1000, 10000)
 	//log.Info.Println("stepCount", stepCount, "earlyTerm", excessLimit)
