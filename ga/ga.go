@@ -62,6 +62,15 @@ func (p init_s) Apply(k int, v Gene_s, r *rand.Rand) Gene_s {
 
 func (p *GA_s) Init(n_pop int, gen_length int, nThread int) {
 	p.Population = population{Genes: make([]Gene_s, n_pop), NThread: nThread}
+	//p.Population.Lock.Lock()
+	//for i_pop := 0; i_pop < n_pop; i_pop++ {
+	//	code := make([]byte, gen_length)
+	//	for i := 0; i < gen_length; i++ {
+	//		code[i] = code[i] % 2
+	//	}
+	//	p.Population.Genes[i_pop] = Gene_s{Code:code}
+	//}
+	//p.Population.Lock.Unlock()
 	p.Population.Replace(init_s{gen_length}, true)
 }
 
@@ -84,6 +93,13 @@ func (p *code_t) mutation(a_mutation float64, r *rand.Rand) {
 		}
 	}
 }
+func (p *code_t) mutation2(a_mutation float64) {
+	for i := range *p {
+		if rand.Float64() < a_mutation {
+			(*p)[i] = 1 - (*p)[i]
+		}
+	}
+}
 
 type measure_and_sort_s struct {
 	p *GA_s
@@ -96,6 +112,11 @@ func (p measure_and_sort_s) Apply(k int, v Gene_s, r *rand.Rand) {
 	}
 }
 func measure_and_sort(p *GA_s) (bestFitness float64) {
+	//for _, gene := range (p.Population.Genes) {
+	//	if !gene.Fitness.IsValid {
+	//		gene.Fitness.Set(p.Fitness_i.Apply(gene))
+	//	}
+	//}
 	p.Population.For(measure_and_sort_s{p}, false)
 	sort.Sort(p.Population)
 	return p.Population.Genes[p.Population.Len()-1].Fitness.Value
@@ -119,7 +140,14 @@ func (p crossover_s) Apply(k int, v *Gene_s, r *rand.Rand) {
 func crossover(p *GA_s) {
 	n_pop := p.Population.Len()
 	n_crossover := (int)(p.P_CrossOver * float64(n_pop))
-	p.Population.Inplace_Update(crossover_s{n_pop, n_crossover, p.Population}, true)
+	//TODO skip last p_mutation*n_pop genes
+	for i_pop := 0; i_pop < n_crossover; i_pop++ {
+		a := n_crossover + rand.Intn(n_pop-n_crossover)
+		b := n_crossover + rand.Intn(n_pop-n_crossover)
+		p.Population.Genes[i_pop].Code.crossover(&(p.Population.Genes[a].Code), &(p.Population.Genes[b].Code))
+		p.Population.Genes[i_pop].Fitness.IsValid = false
+	}
+	//p.Population.Inplace_Update(crossover_s{n_pop, n_crossover, p.Population}, true)
 }
 
 /* updater */
@@ -133,6 +161,11 @@ func (p mutation_s) Apply(k int, v *Gene_s, r *rand.Rand) {
 	}
 }
 func mutation(p *GA_s) {
+	//for _, gene := range (p.Population.Genes) {
+	//	if rand.Float64() < p.P_Mutation {
+	//		gene.Code.mutation2(p.A_Mutation)
+	//	}
+	//}
 	p.Population.Inplace_Update(mutation_s{}, true)
 }
 func (p *GA_s) Run(verbose bool) {

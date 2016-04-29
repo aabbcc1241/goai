@@ -17,7 +17,7 @@ import (
  *       0.0009       | 10001 (excess limit)
  *       0.00091      | 830
  *       0.000911     | 642
- *       0.000912     | 642
+ *       0.000912     | 642	(suggested)
  *       0.0009125    | 642
  *       0.0009128    | 642
  *       0.000913     | 926
@@ -28,19 +28,22 @@ import (
  *       0.001        | 2153
  * the parameter is for user application initial guess reference
  *
- * parallel support (tested on 8 core system)
- *   n_pop:16, gen_length:1000, n_step:1000
- *     1 thread : 0.695 seconds
- *     8 thread : 1.587 seconds
- *   n_pop:1000, gen_length:1000, n_step:100
- *     1 thread :  4.104 seconds
- *     8 thread : 11.203 seconds
- *   n_pop:8, gen_length:10000, n_step:100
- *     1 thread : 0.339 seconds
- *     8 thread : 0.826 seconds
- *   n_pop:10000, gen_length:100, n_step:100
- *     1 thread :  4.237 seconds
- *     8 thread : 10.869 seconds
+ * parallel tune (n_pop:1000, gen_len:10000, n_step:50)
+ *   all parallel
+ *     1 thread  : 20.535 s
+ *     8 threads : 54.526 s
+ *   exclude init
+ *     1 thread  : 20.790 s
+ *     8 threads : 56.872 s
+ *   exclude measure
+ *     1 thread  : 20.470 s
+ *     8 threads : 55.046 s
+ *   exclude crossover		(selected)
+ *     1 thread  : 20.840 s
+ *     8 threads : 20.167 s
+ *   exclude crossover and mutation
+ *     1 thread  : 23.105 s
+ *     8 threads : 22.665 s
  */
 func init() {
 	log.Init(true, true, true, log.ShortCommFlag)
@@ -64,9 +67,9 @@ func TestGa(t *testing.T) {
 		A_Mutation:  0.000912,
 		Fitness_i:   Fitness_i{},
 	}
-	nThread := 8
-	ga_s.Init(10000, 100, nThread)
-	ga_s.RunN(100, false)
+	nThread := 1
+	ga_s.Init(1000, 10000, nThread)
+	ga_s.RunN(50, false)
 	//stepCount, excessLimit := ga_s.RunUntil(1000, 10000)
 	//log.Info.Println("stepCount", stepCount, "earlyTerm", excessLimit)
 }
