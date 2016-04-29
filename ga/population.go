@@ -1,4 +1,4 @@
-/* population of Gene_s */
+/* ParallelArray of Gene_s */
 
 package ga
 
