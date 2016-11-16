@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/aabbcc1241/goutils/log"
+	"github.com/beenotung/goutils/log"
 )
 
 func init() {

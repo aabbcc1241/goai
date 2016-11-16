@@ -1,8 +1,8 @@
 package test
 
 import (
-	"github.com/aabbcc1241/goai/ga"
-	"github.com/aabbcc1241/goutils/log"
+	"github.com/beenotung/goai/ga"
+	"github.com/beenotung/goutils/log"
 	"testing"
 )
 

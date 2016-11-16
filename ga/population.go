@@ -3,7 +3,7 @@
 package ga
 
 import (
-	. "github.com/aabbcc1241/goutils/lang"
+	. "github.com/beenotung/goutils/lang"
 	"math/rand"
 	"runtime"
 	"sync"

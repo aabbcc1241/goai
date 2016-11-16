@@ -1,7 +1,7 @@
 package ga
 
 import (
-	"github.com/aabbcc1241/goutils/log"
+	"github.com/beenotung/goutils/log"
 	"math/rand"
 	"sort"
 )
